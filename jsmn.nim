@@ -17,7 +17,7 @@
 
 ## This module is a fork of `Jsmn <http://zserge.com/jsmn.html>`_ - a world fastest JSON parser/tokenizer - in pure Nim
 ##
-## It also supports ``PARENT LINKS`` and ``STRICTMODE``, you can enable them via command line switch
+## It also supports ``PARENT LINKS`` and ``STRICT MODE``, you can enable them via command line switch
 ##
 ## Installation
 ## ============
@@ -68,6 +68,8 @@ type
   JsmnParser = tuple[pos: int, toknext: int, toksuper: int]
 
 const
+  JSMN_TOKENS* = 64
+
   JSMN_ERROR_NOMEM* = -1 ## not enough tokens, JSON string is too large
   JSMN_ERROR_INVAL* = -2 ## bad token, JSON string is corrupted
   JSMN_ERROR_PART* = -3 ## JSON string is too short, expecting more JSON data
@@ -264,7 +266,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
       when defined(JSMN_STRICT):
         # In strict mode primitives are: numbers and booleans
         case c
-        of '-', '0', '1', '2', '3', '4', '5', '6', '7', '8','9', 't', 'f', 'n':
+        of '-', {'0'..'9'}, 't', 'f', 'n':
           # And they must not be keys of the object
           if tokens.len <= 0 and parser.toksuper != - 1:
             var t: ptr JsmnToken = addr(tokens[parser.toksuper])
@@ -300,12 +302,21 @@ proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
   var parser: JsmnParser = (0, 0, -1)
   parser.parse(json, tokens)
 
+iterator tokens*(json: string): JsmnToken {.inline.} =
+  var tokens: ptr array[JSMN_TOKENS, JsmnToken]
+  var ret = parseJson(json, tokens[])
+  while ret == JSMN_ERROR_NOMEM:
+    var n = sizeof(tokens) * 2
+    tokens = realloc(tokens, n)
+    ret = parseJson(json, tokens[])
+
+
 when isMainModule:
   const
     json = "{\"user\": \"johndoe\", \"admin\": false, \"uid\": 1000, \"groups\": [\"users\", \"wheel\", \"audio\", \"video\"]}"
 
   var
-    tokens: array[10, JsmnToken]
+    tokens: array[16, JsmnToken]
 
   let r = parseJson(json, tokens)
   if r < 0:
