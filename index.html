@@ -1193,6 +1193,10 @@ dt pre > span.Operator ~ span.Identifier, dt pre > span.Operator ~ span.Operator
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#parseJson,string,openArray[JsmnToken]"
     title="parseJson(json: string; tokens: var openArray[JsmnToken]): int"><wbr />parse<wbr />Json</a></li>
+  <li><a class="reference" href="#parseJson,string,seq[JsmnToken]"
+    title="parseJson(json: string; tokens: var seq[JsmnToken]): int"><wbr />parse<wbr />Json</a></li>
+  <li><a class="reference" href="#parseJson,string"
+    title="parseJson(json: string): seq[JsmnToken]"><wbr />parse<wbr />Json</a></li>
 
   </ul>
 </li>
@@ -1202,7 +1206,7 @@ dt pre > span.Operator ~ span.Identifier, dt pre > span.Operator ~ span.Operator
   </div>
   <div class="nine columns" id="content">
   <p class="module-desc"><p>This module is a fork of <a class="reference external" href="http://zserge.com/jsmn.html">Jsmn</a> - a world fastest JSON parser/tokenizer - in pure Nim</p>
-<p>It also supports <tt class="docutils literal"><span class="pre">PARENT LINKS</span></tt> and <tt class="docutils literal"><span class="pre">STRICTMODE</span></tt>, you can enable them via command line switch</p>
+<p>It also supports <tt class="docutils literal"><span class="pre">PARENT LINKS</span></tt> and <tt class="docutils literal"><span class="pre">STRICT MODE</span></tt>, you can enable them via command line switch</p>
 
 <h1><a class="toc-backref" id="installation" href="#installation">Installation</a></h1><pre class = "listing"><span class="Identifier">nimble</span> <span class="Identifier">install</span> <span class="Identifier">jsmn</span></pre>
 <h1><a class="toc-backref" id="usage" href="#usage">Usage</a></h1><pre class = "listing"><span class="Keyword">import</span> <span class="Identifier">jsmn</span>
@@ -1282,6 +1286,16 @@ JSON string is too short, expecting more JSON data
 Parse a JSON data string into and array of tokens, each describing a single JSON object.
 
 </dd>
+<dt id="parseJson"><a name="parseJson,string,seq[JsmnToken]"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
+<dd>
+This proc is a bit slower but its benefit is <cite>tokens</cite> is resizable
+
+</dd>
+<dt id="parseJson"><a name="parseJson,string"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ValueError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
+<dd>
+Parse a JSON data and returns a sequence of tokens
+
+</dd>
 
 </dl></div>
 
@@ -1292,7 +1306,7 @@ Parse a JSON data string into and array of tokens, each describing a single JSON
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2016-02-22 14:09:05 UTC</small>
+        <small>Made with Nim. Generated: 2016-02-24 00:39:46 UTC</small>
       </div>
     </div>
   </div>
