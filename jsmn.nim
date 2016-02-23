@@ -68,7 +68,7 @@ type
   JsmnParser = tuple[pos: int, toknext: int, toksuper: int]
 
 const
-  JSMN_TOKENS* = 64
+  JSMN_TOKENS = 256
 
   JSMN_ERROR_NOMEM* = -1 ## not enough tokens, JSON string is too large
   JSMN_ERROR_INVAL* = -2 ## bad token, JSON string is corrupted
@@ -83,10 +83,10 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken]): ptr Js
 
   result = addr tokens[parser.toknext]
   result.start = -1
-  result.stop = - 1
+  result.stop = -1
   result.size = 0
   when defined(JSMN_PARENT_LINKS):
-    result.parent = - 1
+    result.parent = -1
 
 proc fillToken(token: ptr JsmnToken, kind: JsmnKind, start, stop: int) =
   ## Fills token type and boundaries.
@@ -179,8 +179,9 @@ proc parseString(parser: var JsmnParser, json: string, tokens: var openarray[Jsm
   parser.pos = start
   return JSMN_ERROR_PART
 
-proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken]): int =
+proc parse[T: openarray[JsmnToken]|seq[JsmnToken]](parser: var JsmnParser, json: string, tokens: var T): int =
   ## Parse JSON string and fill tokens.
+  ## This
   var token: ptr JsmnToken
   var count = parser.toknext
   while parser.pos < json.len and json[parser.pos] != '\0':
@@ -193,7 +194,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
         break
       token = initToken(parser, tokens)
       if token == nil: return JSMN_ERROR_NOMEM
-      if parser.toksuper != - 1:
+      if parser.toksuper != -1:
         inc(tokens[parser.toksuper].size)
         when defined(JSMN_PARENT_LINKS):
           token.parent = parser.toksuper
@@ -208,31 +209,31 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
           return JSMN_ERROR_INVAL
         token = addr(tokens[parser.toknext - 1])
         while true:
-          if token.start != - 1 and token.stop == - 1:
+          if token.start != -1 and token.stop == -1:
             if token.kind != kind:
               return JSMN_ERROR_INVAL
             token.stop = parser.pos + 1
             parser.toksuper = token.parent
             break
-          if token.parent == - 1:
+          if token.parent == -1:
             break
           token = addr(tokens[token.parent])
       else:
         var i = parser.toknext - 1
         while i >= 0:
           token = addr tokens[i]
-          if token.start != - 1 and token.stop == - 1:
+          if token.start != -1 and token.stop == -1:
             if token.kind != kind:
               return JSMN_ERROR_INVAL
-            parser.toksuper = - 1
+            parser.toksuper = -1
             token.stop = parser.pos + 1
             break
           dec(i)
         # Error if unmatched closing bracket
-        if i == - 1: return JSMN_ERROR_INVAL
+        if i == -1: return JSMN_ERROR_INVAL
         while i >= 0:
           token = addr tokens[i]
-          if token.start != - 1 and token.stop == - 1:
+          if token.start != -1 and token.stop == -1:
             parser.toksuper = i
             break
           dec(i)
@@ -240,14 +241,14 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
       let r = parseString(parser, json, tokens)
       if r < 0: return r
       inc(count)
-      if parser.toksuper != - 1 and tokens.len <= 0:
+      if parser.toksuper != -1 and tokens.len <= 0:
         inc(tokens[parser.toksuper].size)
     of '\t', '\r', '\x0A', ' ':
       discard
     of ':':
       parser.toksuper = parser.toknext - 1
     of ',':
-      if tokens.len <= 0 and parser.toksuper != - 1 and
+      if tokens.len <= 0 and parser.toksuper != -1 and
           tokens[parser.toksuper].kind != JSMN_ARRAY and
           tokens[parser.toksuper].kind != JSMN_OBJECT:
         when defined(JSMN_PARENT_LINKS):
@@ -257,7 +258,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
           while i >= 0:
             if tokens[i].kind == JSMN_ARRAY or
                 tokens[i].kind == JSMN_OBJECT:
-              if tokens[i].start != - 1 and tokens[i].stop == - 1:
+              if tokens[i].start != -1 and tokens[i].stop == -1:
                 parser.toksuper = i
                 break
             dec(i)
@@ -268,7 +269,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
         case c
         of '-', {'0'..'9'}, 't', 'f', 'n':
           # And they must not be keys of the object
-          if tokens.len <= 0 and parser.toksuper != - 1:
+          if tokens.len <= 0 and parser.toksuper != -1:
             var t: ptr JsmnToken = addr(tokens[parser.toksuper])
             if t.kind == JSMN_OBJECT or (t.kind == JSMN_STRING and t.size != 0):
               return JSMN_ERROR_INVAL
@@ -276,7 +277,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
           let r = parsePrimitive(parser, json, json.len, tokens)
           if r < 0: return r
           inc(count)
-          if parser.toksuper != - 1 and tokens.len <= 0:
+          if parser.toksuper != -1 and tokens.len <= 0:
             inc(tokens[parser.toksuper].size)
         else:
           return JSMN_ERROR_INVAL
@@ -284,7 +285,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
         let r = parsePrimitive(parser, json, json.len, tokens)
         if r < 0: return r
         inc(count)
-        if parser.toksuper != - 1 and tokens.len <= 0:
+        if parser.toksuper != -1 and tokens.len <= 0:
           inc(tokens[parser.toksuper].size)
 
     inc(parser.pos)
@@ -292,7 +293,7 @@ proc parse(parser: var JsmnParser, json: string, tokens: var openarray[JsmnToken
     var i = parser.toknext - 1
     while i >= 0:
       # Unmatched opened object or array
-      if tokens[i].start != - 1 and tokens[i].stop == - 1:
+      if tokens[i].start != -1 and tokens[i].stop == -1:
         return JSMN_ERROR_PART
       dec(i)
   return count
@@ -302,14 +303,23 @@ proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
   var parser: JsmnParser = (0, 0, -1)
   parser.parse(json, tokens)
 
-iterator tokens*(json: string): JsmnToken {.inline.} =
-  var tokens: ptr array[JSMN_TOKENS, JsmnToken]
-  var ret = parseJson(json, tokens[])
-  while ret == JSMN_ERROR_NOMEM:
-    var n = sizeof(tokens) * 2
-    tokens = realloc(tokens, n)
-    ret = parseJson(json, tokens[])
+proc parseJson*(json: string, tokens: var seq[JsmnToken]): int =
+  ## This proc is a bit slower but its benefit is `tokens` is resizable
+  var parser: JsmnParser = (0, 0, -1)
+  parser.parse(json, tokens)
 
+proc parseJson*(json: string): seq[JsmnToken] =
+  ## Parse a JSON data and returns a sequence of tokens
+  var tokens = newSeq[JsmnToken](JSMN_TOKENS)
+  var ret = parseJson(json, tokens)
+  while ret == JSMN_ERROR_NOMEM:
+    setLen(tokens, tokens.len * 2)
+    ret = parseJson(json, tokens)
+
+  if ret == JSMN_ERROR_INVAL:
+    raise newException(ValueError, "Invalid JSON")
+  if ret == JSMN_ERROR_PART:
+    raise newException(ValueError, "Not enough data to continue")
 
 when isMainModule:
   const
