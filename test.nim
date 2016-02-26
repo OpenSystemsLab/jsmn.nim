@@ -38,10 +38,9 @@ template GET_KEY(token: ptr JsmnToken, json: string): expr =
 var
   i, j, k = 0
   count: int
-  t, nxt: ptr JsmnToken
+  t, nxt: JsmnToken
   maps = newTable[string, JsmnToken](32)
   tokens: array[32, JsmnToken]
-
 
 var js = $$t1
 echo js
@@ -49,17 +48,31 @@ let r = parseJson(addr js, tokens)
 if r < 0:
   quit("Error: " & $r, QuitFailure)
 
-while i < r:
-  inc(i) # skip first token
-  t = addr tokens[i]
-  case t.kind
-  of JSMN_STRING:
-    echo "[", i, "]\t", t[]
-    nxt = addr tokens[i+1]
-#    inc(i)
-#  of JSMN_ARRAY:
-#    inc(i, t.size)
-#  of JSMN_OBJECT:
-#    inc(i, t.size*2)
-  else:
-    echo "[", i, "]\t", t[]
+proc dumpObject(tokens: openarray[JsmnToken], map: TableRef[string, JsmnToken], size: int, i: var int) =
+  if tokens[0].kind != JSMN_OBJECT:
+    quit("Object expected", QuitFailure)
+
+  var key: string
+  while i < size:
+    inc(i) # skip first token
+    var t = tokens[i]
+    if t.kind == JSMN_STRING:
+      key = GET_KEY(addr t, js)
+      echo key
+     echo "[", i, "]\t", t
+      nxt = tokens[i+1]
+
+     case nxt.kind
+     of JSMN_STRING:
+       inc(i)
+     of JSMN_PRIMITIVE:
+       inc(i)
+     of JSMN_ARRAY:
+       inc(i, t.size)
+     of JSMN_OBJECT:
+       discard
+     else:
+       discard
+
+
+dumpObject(tokens, maps, tokens[0].size, i)

@@ -97,7 +97,6 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
   if parser.toknext >= tokens.len - 1:
     raise newException(JsmnNotEnoughTokensException, $parser)
 
-  inc(parser.toknext)
   result = addr tokens[parser.toknext]
   result.kind = kind
   result.start = start
@@ -107,6 +106,8 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
     result.parent = -1
   when not defined(release):
     result.debug = parser.json[result.start..<result.stop]
+
+  inc(parser.toknext)
 
 proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken]) =
   ## Fills next available token with JSON primitive.
@@ -186,8 +187,8 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
           token.parent = parser.toksuper
           assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
       token.kind = (if c == '{': JSMN_OBJECT else: JSMN_ARRAY)
-      token.start = parser.pos;
-      parser.toksuper = parser.toknext
+      token.start = parser.pos
+      parser.toksuper = parser.toknext - 1
       assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
     of '}', ']':
       kind = (if c == '}': JSMN_OBJECT else: JSMN_ARRAY)
