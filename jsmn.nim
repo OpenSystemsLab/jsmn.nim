@@ -40,8 +40,6 @@
 ##    tokens: array[32, JsmnToken] # expect not more than 32 tokens
 ##
 ##  let r = parseJson(json, tokens)
-##  if r < 0:
-##    echo "Failed to parse JSON: ", r
 ##
 ##  for i in 1..r:
 ##    var token = addr tokens[i]
@@ -177,12 +175,10 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
   while parser.pos < parser.length and parser.json[parser.pos] != '\0':
     var kind: JsmnKind
     var c = parser.json[parser.pos]
-    #echo c
     case c
     of '{', '[':
       inc(count)
       token = initToken(parser, tokens)
-      #echo "toknext ", parser.toknext
       if parser.toksuper != -1:
         assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
         inc(tokens[parser.toksuper].size)
@@ -191,10 +187,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
           assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
       token.kind = (if c == '{': JSMN_OBJECT else: JSMN_ARRAY)
       token.start = parser.pos;
-      #if parser.toksuper == -1:
       parser.toksuper = parser.toknext
-      #else:
-      #  parser.toksuper = parser.toknext
       assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
     of '}', ']':
       kind = (if c == '}': JSMN_OBJECT else: JSMN_ARRAY)
@@ -208,7 +201,6 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
               raise newException(JsmnBadTokenException, $parser)
             token.stop = parser.pos + 1
             parser.toksuper = token.parent
-            #assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
             break
           if token.parent == -1:
             break
@@ -217,7 +209,6 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
         var i = parser.toknext
         while i >= 0:
           token = addr tokens[i]
-          echo token[]
           if token.start != -1 and token.stop == -1:
             if token.kind != kind:
               raise newException(JsmnBadTokenException, $parser)
@@ -309,6 +300,10 @@ proc parseJson*(json: ptr string, tokens: var openarray[JsmnToken]): int =
   parser.length = len(json[])
   parser.parse(tokens)
 
+proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
+  var json = json
+  parseJson(addr json, tokens)
+
 proc parseJson*(json: ptr string): seq[JsmnToken] =
   ## Parse a JSON data and returns a sequence of tokens
   var tokens = newSeq[JsmnToken](JSMN_TOKENS)
@@ -325,9 +320,6 @@ when isMainModule:
     tokens: array[16, JsmnToken]
 
   let r = parseJson(json, tokens)
-  if r < 0:
-    echo "Failed to parse JSON: ", r
-
   for i in 1..r:
     var token = addr tokens[i]
     echo "Kind: ", token.kind
