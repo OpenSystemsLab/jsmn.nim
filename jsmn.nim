@@ -46,6 +46,8 @@
 ##    echo "Kind: ", token.kind
 ##    echo "Value: ", json[token.start..<token.stop]
 
+import tables, strutils
+
 type
   JsmnKind* = enum ## JSON type identifier
     JSMN_UNDEFINED, ## Undefined
@@ -312,6 +314,126 @@ proc parseJson*(json: ptr string): seq[JsmnToken] =
   while ret < 0:
     setLen(tokens, tokens.len * 2)
     ret = parseJson(json, tokens)
+
+template GET_VALUE(token: JsmnToken, json: string): expr =
+  json[token.start..<token.stop]
+
+proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) =
+  ## reads data and transforms it to ``target``
+  var
+    i = start
+    t: JsmnToken
+    value: string
+    maps = newTable[string, int](32)
+
+
+  if tokens[start].kind != JSMN_OBJECT:
+    quit("Object expected", QuitFailure)
+
+  var key: string
+  while i < tokens.len-1:
+    t = tokens[i]
+    if t.kind == JSMN_STRING:
+      key = GET_VALUE(t, json)
+      maps[key] = i+1
+      case tokens[i+1].kind
+      of JSMN_STRING, JSMN_PRIMITIVE:
+        inc(i)
+      of JSMN_ARRAY, JSMN_OBJECT:
+        inc(i, tokens[i+1].size + 1)
+      else:
+        discard
+    inc(i)
+
+  for n, v in fieldPairs(target):
+    if maps.hasKey(n):
+      when v is bool:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = (value[0] == 't')
+      elif v is char:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        if value.len > 0:
+          v = value[0]
+      elif v is enum:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        for e in low(v)..high(v):
+          if $e == value:
+            v = e
+      elif v is array:
+        #var size = sizeof(v[0])
+        for x in 0..<v.len:
+          value = GET_VALUE(tokens[maps[n] + 1 + x], json)
+          v[x] = value
+      elif v is seq:
+        t = tokens[maps[n]]
+        newSeq(v, 0)
+        for x in 1..t.size:
+          value = GET_VALUE(tokens[maps[n] + x], json)
+          v.add value
+      elif v is object or v is tuple:
+        loadObject(v, tokens, js, maps[n])
+      elif v is string:
+        t = tokens[maps[n]]
+        if t.kind == JSMN_STRING:
+           v = GET_VALUE(t, json)
+      elif v is int:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).int
+      elif v is int8:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).int8
+      elif v is int16:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).int16
+      elif v is int32:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).int32
+      elif v is int64:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).int64
+      elif v is uint:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).uint
+      elif v is uint8:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).uint8
+      elif v is uint16:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).uint16
+      elif v is uint32:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).uint32
+      elif v is uint64:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).uint64
+      elif v is float:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseFloat(value)
+      elif v is float32:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).float32
+      elif v is float64:
+        t = tokens[maps[n]]
+        value = GET_VALUE(t, json)
+        v = parseBiggestInt(value).float64
+      else:
+        raise newException(ValueError, "Unsupported value: " & n)
+
 
 when isMainModule:
   const
