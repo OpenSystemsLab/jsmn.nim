@@ -1156,6 +1156,12 @@ dt pre > span.Operator ~ span.Identifier, dt pre > span.Operator ~ span.Operator
 <li><a class="reference" id="installation_toc" href="#installation">Installation</a></li>
 <li><a class="reference" id="usage_toc" href="#usage">Usage</a></li>
 <li>
+  <a class="reference reference-toplevel" href="#6" id="56">Imports</a>
+  <ul class="simple simple-toc-section">
+    
+  </ul>
+</li>
+<li>
   <a class="reference reference-toplevel" href="#7" id="57">Types</a>
   <ul class="simple simple-toc-section">
       <li><a class="reference" href="#JsmnKind"
@@ -1172,31 +1178,30 @@ dt pre > span.Operator ~ span.Identifier, dt pre > span.Operator ~ span.Operator
   stop*: int                   ## end position in JSON data string
   size*: int
   when defined(JSMN_PARENT_LINKS):
-      parent*: int"><wbr />Jsmn<wbr />Token</a></li>
+      parent*: int
 
-  </ul>
-</li>
-<li>
-  <a class="reference reference-toplevel" href="#10" id="60">Consts</a>
-  <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#JSMN_ERROR_NOMEM"
-    title="JSMN_ERROR_NOMEM = -1"><wbr />JSMN_<wbr />ERROR_<wbr />NOMEM</a></li>
-  <li><a class="reference" href="#JSMN_ERROR_INVAL"
-    title="JSMN_ERROR_INVAL = -2"><wbr />JSMN_<wbr />ERROR_<wbr />INVAL</a></li>
-  <li><a class="reference" href="#JSMN_ERROR_PART"
-    title="JSMN_ERROR_PART = -3"><wbr />JSMN_<wbr />ERROR_<wbr />PART</a></li>
+  when not false:
+      debug*: string"><wbr />Jsmn<wbr />Token</a></li>
+  <li><a class="reference" href="#JsmnException"
+    title="JsmnException = object of ValueError"><wbr />Jsmn<wbr />Exception</a></li>
+  <li><a class="reference" href="#JsmnNotEnoughTokensException"
+    title="JsmnNotEnoughTokensException = object of JsmnException"><wbr />Jsmn<wbr />Not<wbr />Enough<wbr />Tokens<wbr />Exception</a></li>
+  <li><a class="reference" href="#JsmnNotEnoughJsonDataException"
+    title="JsmnNotEnoughJsonDataException = object of JsmnException"><wbr />Jsmn<wbr />Not<wbr />Enough<wbr />Json<wbr />Data<wbr />Exception</a></li>
 
   </ul>
 </li>
 <li>
   <a class="reference reference-toplevel" href="#12" id="62">Procs</a>
   <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#parseJson,string,openArray[JsmnToken]"
+      <li><a class="reference" href="#parseJson,ptr.string,openArray[JsmnToken]"
+    title="parseJson(json: ptr string; tokens: var openArray[JsmnToken]): int"><wbr />parse<wbr />Json</a></li>
+  <li><a class="reference" href="#parseJson,string,openArray[JsmnToken]"
     title="parseJson(json: string; tokens: var openArray[JsmnToken]): int"><wbr />parse<wbr />Json</a></li>
-  <li><a class="reference" href="#parseJson,string,seq[JsmnToken]"
-    title="parseJson(json: string; tokens: var seq[JsmnToken]): int"><wbr />parse<wbr />Json</a></li>
-  <li><a class="reference" href="#parseJson,string"
-    title="parseJson(json: string): seq[JsmnToken]"><wbr />parse<wbr />Json</a></li>
+  <li><a class="reference" href="#parseJson,ptr.string"
+    title="parseJson(json: ptr string): seq[JsmnToken]"><wbr />parse<wbr />Json</a></li>
+  <li><a class="reference" href="#loadObject,auto,openArray[JsmnToken],string,int"
+    title="loadObject[](target: var auto; tokens: openArray[JsmnToken]; json: string; start = 0)"><wbr />load<wbr />Object</a></li>
 
   </ul>
 </li>
@@ -1222,14 +1227,17 @@ dt pre > span.Operator ~ span.Identifier, dt pre > span.Operator ~ span.Operator
   <span class="Identifier">tokens</span><span class="Punctuation">:</span> <span class="Identifier">array</span><span class="Punctuation">[</span><span class="DecNumber">32</span><span class="Punctuation">,</span> <span class="Identifier">JsmnToken</span><span class="Punctuation">]</span> <span class="Comment"># expect not more than 32 tokens</span>
 
 <span class="Keyword">let</span> <span class="Identifier">r</span> <span class="Operator">=</span> <span class="Identifier">parseJson</span><span class="Punctuation">(</span><span class="Identifier">json</span><span class="Punctuation">,</span> <span class="Identifier">tokens</span><span class="Punctuation">)</span>
-<span class="Keyword">if</span> <span class="Identifier">r</span> <span class="Operator">&lt;</span> <span class="DecNumber">0</span><span class="Punctuation">:</span>
-  <span class="Identifier">echo</span> <span class="StringLit">&quot;Failed to parse JSON: &quot;</span><span class="Punctuation">,</span> <span class="Identifier">r</span>
 
 <span class="Keyword">for</span> <span class="Identifier">i</span> <span class="Keyword">in</span> <span class="FloatNumber">1.</span><span class="Operator">.</span><span class="Identifier">r</span><span class="Punctuation">:</span>
   <span class="Keyword">var</span> <span class="Identifier">token</span> <span class="Operator">=</span> <span class="Keyword">addr</span> <span class="Identifier">tokens</span><span class="Punctuation">[</span><span class="Identifier">i</span><span class="Punctuation">]</span>
   <span class="Identifier">echo</span> <span class="StringLit">&quot;Kind: &quot;</span><span class="Punctuation">,</span> <span class="Identifier">token</span><span class="Operator">.</span><span class="Identifier">kind</span>
   <span class="Identifier">echo</span> <span class="StringLit">&quot;Value: &quot;</span><span class="Punctuation">,</span> <span class="Identifier">json</span><span class="Punctuation">[</span><span class="Identifier">token</span><span class="Operator">.</span><span class="Identifier">start</span><span class="Operator">..&lt;</span><span class="Identifier">token</span><span class="Operator">.</span><span class="Identifier">stop</span><span class="Punctuation">]</span></pre></p>
-  <div class="section" id="7">
+  <div class="section" id="6">
+<h1><a class="toc-backref" href="#6">Imports</a></h1>
+<dl class="item">
+<a class="reference external" href="tables.html">tables</a>, <a class="reference external" href="strutils.html">strutils</a>
+</dl></div>
+<div class="section" id="7">
 <h1><a class="toc-backref" href="#7">Types</a></h1>
 <dl class="item">
 <dt id="JsmnKind"><a name="JsmnKind"></a><pre><span class="Identifier">JsmnKind</span> <span class="Other">=</span> <span class="Keyword">enum</span>
@@ -1250,27 +1258,27 @@ JSON type identifier
   <span class="Keyword">when</span> <span class="Identifier">defined</span><span class="Other">(</span><span class="Identifier">JSMN_PARENT_LINKS</span><span class="Other">)</span><span class="Other">:</span>
       <span class="Identifier">parent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
 
+  <span class="Keyword">when</span> <span class="Keyword">not</span> <span class="DecNumber">false</span><span class="Other">:</span>
+      <span class="Identifier">debug</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+
   </pre></dt>
 <dd>
 JSON token description.
 
 </dd>
+<dt id="JsmnException"><a name="JsmnException"></a><pre><span class="Identifier">JsmnException</span> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">ValueError</span></pre></dt>
+<dd>
 
-</dl></div>
-<div class="section" id="10">
-<h1><a class="toc-backref" href="#10">Consts</a></h1>
-<dl class="item">
-<dt id="JSMN_ERROR_NOMEM"><a name="JSMN_ERROR_NOMEM"></a><pre><span class="Identifier">JSMN_ERROR_NOMEM</span> <span class="Other">=</span> <span class="DecNumber">-1</span></pre></dt>
+
+</dd>
+<dt id="JsmnNotEnoughTokensException"><a name="JsmnNotEnoughTokensException"></a><pre><span class="Identifier">JsmnNotEnoughTokensException</span> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">JsmnException</span>
+  </pre></dt>
 <dd>
 not enough tokens, JSON string is too large
 
 </dd>
-<dt id="JSMN_ERROR_INVAL"><a name="JSMN_ERROR_INVAL"></a><pre><span class="Identifier">JSMN_ERROR_INVAL</span> <span class="Other">=</span> <span class="DecNumber">-2</span></pre></dt>
-<dd>
-bad token, JSON string is corrupted
-
-</dd>
-<dt id="JSMN_ERROR_PART"><a name="JSMN_ERROR_PART"></a><pre><span class="Identifier">JSMN_ERROR_PART</span> <span class="Other">=</span> <span class="DecNumber">-3</span></pre></dt>
+<dt id="JsmnNotEnoughJsonDataException"><a name="JsmnNotEnoughJsonDataException"></a><pre><span class="Identifier">JsmnNotEnoughJsonDataException</span> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">JsmnException</span>
+  </pre></dt>
 <dd>
 JSON string is too short, expecting more JSON data
 
@@ -1280,20 +1288,31 @@ JSON string is too short, expecting more JSON data
 <div class="section" id="12">
 <h1><a class="toc-backref" href="#12">Procs</a></h1>
 <dl class="item">
-<dt id="parseJson"><a name="parseJson,string,openArray[JsmnToken]"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
+<dt id="parseJson"><a name="parseJson,ptr.string,openArray[JsmnToken]"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span>
+    <span class="Identifier">JsmnNotEnoughTokensException</span><span class="Other">,</span> <span class="Identifier">JsmnBadTokenException</span><span class="Other">,</span>
+    <span class="Identifier">JsmnNotEnoughJsonDataException</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
 <dd>
 Parse a JSON data string into and array of tokens, each describing a single JSON object.
 
 </dd>
-<dt id="parseJson"><a name="parseJson,string,seq[JsmnToken]"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
+<dt id="parseJson"><a name="parseJson,string,openArray[JsmnToken]"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span>
+    <span class="Identifier">JsmnNotEnoughTokensException</span><span class="Other">,</span> <span class="Identifier">JsmnBadTokenException</span><span class="Other">,</span>
+    <span class="Identifier">JsmnNotEnoughJsonDataException</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
 <dd>
-This proc is a bit slower but its benefit is <cite>tokens</cite> is resizable
+
 
 </dd>
-<dt id="parseJson"><a name="parseJson,string"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ValueError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
+<dt id="parseJson"><a name="parseJson,ptr.string"></a><pre><span class="Keyword">proc</span> <span class="Identifier">parseJson</span><span class="Other">(</span><span class="Identifier">json</span><span class="Other">:</span> <span class="Keyword">ptr</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span> <span class="Other">{.</span><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span>
+    <span class="Identifier">JsmnNotEnoughTokensException</span><span class="Other">,</span> <span class="Identifier">JsmnBadTokenException</span><span class="Other">,</span>
+    <span class="Identifier">JsmnNotEnoughJsonDataException</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">.}</span></pre></dt>
 <dd>
 Parse a JSON data and returns a sequence of tokens
+
+</dd>
+<dt id="loadObject"><a name="loadObject,auto,openArray[JsmnToken],string,int"></a><pre><span class="Keyword">proc</span> <span class="Identifier">loadObject</span><span class="Other">[</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">target</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">tokens</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">JsmnToken</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">json</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
+                 <span class="Identifier">start</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">)</span></pre></dt>
+<dd>
+reads data and transforms it to <tt class="docutils literal"><span class="pre">target</span></tt>
 
 </dd>
 
@@ -1306,7 +1325,7 @@ Parse a JSON data and returns a sequence of tokens
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br/>
-        <small>Made with Nim. Generated: 2016-02-24 00:39:46 UTC</small>
+        <small>Made with Nim. Generated: 2016-02-29 00:30:24 UTC</small>
       </div>
     </div>
   </div>
