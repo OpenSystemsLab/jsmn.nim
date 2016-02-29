@@ -64,15 +64,11 @@ type
     size*: int
     when defined(JSMN_PARENT_LINKS):
       parent*: int
-    when not defined(release):
-      debug*: string
 
   JsmnParser = object
     pos: int
     toknext: int
     toksuper: int
-    json: ptr string
-    length: int
 
   JsmnException* = object of ValueError
 
@@ -106,60 +102,62 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
   result.size = 0
   when defined(JSMN_PARENT_LINKS):
     result.parent = -1
-  when not defined(release):
-    result.debug = parser.json[result.start..<result.stop]
 
   inc(parser.toknext)
 
-proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken]) =
+proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int) =
   ## Fills next available token with JSON primitive.
   var start = parser.pos
-  while parser.pos < parser.length and parser.json[parser.pos] != '\0':
-    case parser.json[parser.pos]
+  while parser.pos < length and json[parser.pos] != '\0':
+    case json[parser.pos]
     of PRIMITIVE_DELIMITERS:
-      let token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
       when defined(JSMN_PARENT_LINKS):
+        var token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
         token.parent = parser.toksuper
         assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
+      else:
+        discard initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
       dec(parser.pos)
       return
     else:
       discard
 
-    if parser.json[parser.pos].ord < 32 or parser.json[parser.pos].ord >= 127:
+    if json[parser.pos].ord < 32 or json[parser.pos].ord >= 127:
       raise newException(JsmnBadTokenException, $parser)
     inc(parser.pos)
   when defined(JSMN_STRICT):
     # In strict mode primitive must be followed by a comma/object/array
     raise newException(JsmnBadTokenException, $parser)
 
-proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken]) =
+proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int) =
   ## Fills next token with JSON string.
   let start = parser.pos
   inc(parser.pos)
   # Skip starting quote
-  while parser.pos < parser.length and parser.json[parser.pos] != '\0':
-    let c = parser.json[parser.pos]
+  while parser.pos < length and json[parser.pos] != '\0':
+    let c = json[parser.pos]
     # Quote: end of string
     if c == '"':
-      let token = initToken(parser, tokens, JSMN_STRING, start + 1, parser.pos)
       when defined(JSMN_PARENT_LINKS):
+        var token = initToken(parser, tokens, JSMN_STRING, start + 1, parser.pos)
         token.parent = parser.toksuper
         assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
+      else:
+        discard initToken(parser, tokens, JSMN_STRING, start + 1, parser.pos)
       return
-    if c == '\x08' and parser.pos + 1 < parser.length:
+    if c == '\x08' and parser.pos + 1 < length:
       inc(parser.pos)
-      case parser.json[parser.pos]     # Allowed escaped symbols
+      case json[parser.pos]     # Allowed escaped symbols
       of '\"', '/', '\x08', 'b', 'f', 'r', 'n', 't':
         discard
       of 'u':
         inc(parser.pos)
         var i = 0
-        while i < 4 and parser.pos < parser.length and parser.json[parser.pos] != '\0':
+        while i < 4 and parser.pos < length and json[parser.pos] != '\0':
           # If it isn't a hex character we have an error
-          if not ((parser.json[parser.pos] >= '0' and parser.json[parser.pos] <= '9') or
-              (parser.json[parser.pos] >= 'A' and parser.json[parser.pos] <= 'F') or
-              (parser.json[parser.pos] >= 'a' and parser.json[parser.pos] <= 'f')):
+          if not ((json[parser.pos] >= '0' and json[parser.pos] <= '9') or
+              (json[parser.pos] >= 'A' and json[parser.pos] <= 'F') or
+              (json[parser.pos] >= 'a' and json[parser.pos] <= 'f')):
             raise newException(JsmnBadTokenException, $parser)
           inc(parser.pos)
           inc(i)
@@ -169,15 +167,15 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken]) =
     inc(parser.pos)
   raise newException(JsmnBadTokenException, $parser)
 
-proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
+proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int): int =
   ## Parse JSON string and fill tokens.
   if tokens.len <= 0:
     return 0
   var token: ptr JsmnToken
   var count = parser.toknext
-  while parser.pos < parser.length and parser.json[parser.pos] != '\0':
+  while parser.pos < length and json[parser.pos] != '\0':
     var kind: JsmnKind
-    var c = parser.json[parser.pos]
+    var c = json[parser.pos]
     case c
     of '{', '[':
       inc(count)
@@ -230,7 +228,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
             break
           dec(i)
     of '"':
-      parseString(parser, tokens)
+      parseString(parser, tokens, json, length)
       inc(count)
       if parser.toksuper != -1:
         assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
@@ -268,8 +266,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
             var t: ptr JsmnToken = addr(tokens[parser.toksuper])
             if t.kind == JSMN_OBJECT or (t.kind == JSMN_STRING and t.size != 0):
               raise newException(JsmnBadTokenException, $parser)
-
-          parsePrimitive(parser, tokens)
+          parsePrimitive(parser, tokens, json, length)
           inc(count)
           if parser.toksuper != -1:
             assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
@@ -277,12 +274,11 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
         else:
           raise newException(JsmnBadTokenException, $parser)
       else:
-        parsePrimitive(parser, tokens)
+        parsePrimitive(parser, tokens, json, length)
         inc(count)
         if parser.toksuper != -1:
           assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
           inc(tokens[parser.toksuper].size)
-
     inc(parser.pos)
 
   var i = parser.toknext - 1
@@ -293,21 +289,15 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken]): int =
     dec(i)
   return count
 
-proc parseJson*(json: ptr string, tokens: var openarray[JsmnToken]): int =
+proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
   ## Parse a JSON data string into and array of tokens, each describing a single JSON object.
   var parser: JsmnParser
   parser.pos = 0
   parser.toknext = 0
   parser.toksuper = -1
-  parser.json = json
-  parser.length = len(json[])
-  parser.parse(tokens)
+  parser.parse(tokens, json, json.len)
 
-proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
-  var json = json
-  parseJson(addr json, tokens)
-
-proc parseJson*(json: ptr string): seq[JsmnToken] =
+proc parseJson*(json: string): seq[JsmnToken] =
   ## Parse a JSON data and returns a sequence of tokens
   var tokens = newSeq[JsmnToken](JSMN_TOKENS)
   var ret = parseJson(json, tokens)
@@ -315,26 +305,70 @@ proc parseJson*(json: ptr string): seq[JsmnToken] =
     setLen(tokens, tokens.len * 2)
     ret = parseJson(json, tokens)
 
-template GET_VALUE(token: JsmnToken, json: string): expr =
-  json[token.start..<token.stop]
+proc getValue(t: JsmnToken, json: string): string {.inline, noSideEffect.} =
+  json[t.start..<t.stop]
+
+proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0)
+
+proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  loadObject(v, t, json, idx)
+
+proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var bool) {.inline.} =
+  let value = t[idx].getValue(json)
+  v = value[0] == 't'
+
+proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var char) {.inline.} =
+  let value = t[idx].getValue(json)
+  if value.len > 0:
+    v = value[0]
+
+proc loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  when v is int:
+    v = parseInt(t[idx].getValue(json))
+  else:
+    v = (T)parseInt(t[idx].getValue(json))
+
+
+proc loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  when v is float:
+    v = parseFloat(t[idx].getValue(json))
+  else:
+    v = (T)parseFloat(t[idx].getValue(json))
+
+proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var string) {.inline.} =
+  if t[idx].kind == JSMN_STRING:
+    v = t[idx].getValue(json)
+
+proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  let value = t[idx].getValue(json)
+  for e in low(v)..high(v):
+    if $e == value:
+      v = e
+
+proc loadValue[T: array](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  for x in 0..<v.len:
+    loadValue(t, idx + 1 + x * t[idx + 1 + x].size, json, v[x])
+
+proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var seq) {.inline.} =
+  newSeq(v, t[idx].size)
+  for x in 0..<t[idx].size:
+    loadValue(t, idx + 1 + x * t[idx + 1 + x].size, json, v[x])
 
 proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) =
   ## reads data and transforms it to ``target``
   var
     i = start
     t: JsmnToken
-    value: string
+    key: string
     maps = newTable[string, int](32)
-
 
   if tokens[start].kind != JSMN_OBJECT:
     quit("Object expected", QuitFailure)
 
-  var key: string
   while i < tokens.len-1:
     t = tokens[i]
     if t.kind == JSMN_STRING:
-      key = GET_VALUE(t, json)
+      key = t.getValue(json)
       maps[key] = i+1
       case tokens[i+1].kind
       of JSMN_STRING, JSMN_PRIMITIVE:
@@ -347,93 +381,7 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
 
   for n, v in fieldPairs(target):
     if maps.hasKey(n):
-      when v is bool:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = (value[0] == 't')
-      elif v is char:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        if value.len > 0:
-          v = value[0]
-      elif v is enum:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        for e in low(v)..high(v):
-          if $e == value:
-            v = e
-      elif v is array:
-        #var size = sizeof(v[0])
-        for x in 0..<v.len:
-          value = GET_VALUE(tokens[maps[n] + 1 + x], json)
-          v[x] = value
-      elif v is seq:
-        t = tokens[maps[n]]
-        newSeq(v, 0)
-        for x in 1..t.size:
-          value = GET_VALUE(tokens[maps[n] + x], json)
-          v.add value
-      elif v is object or v is tuple:
-        loadObject(v, tokens, js, maps[n])
-      elif v is string:
-        t = tokens[maps[n]]
-        if t.kind == JSMN_STRING:
-           v = GET_VALUE(t, json)
-      elif v is int:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).int
-      elif v is int8:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).int8
-      elif v is int16:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).int16
-      elif v is int32:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).int32
-      elif v is int64:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).int64
-      elif v is uint:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).uint
-      elif v is uint8:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).uint8
-      elif v is uint16:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).uint16
-      elif v is uint32:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).uint32
-      elif v is uint64:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).uint64
-      elif v is float:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseFloat(value)
-      elif v is float32:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).float32
-      elif v is float64:
-        t = tokens[maps[n]]
-        value = GET_VALUE(t, json)
-        v = parseBiggestInt(value).float64
-      else:
-        raise newException(ValueError, "Unsupported value: " & n)
-
+      loadValue(tokens, maps[n], json, v)
 
 when isMainModule:
   const
