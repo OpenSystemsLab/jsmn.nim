@@ -14,9 +14,8 @@ type
     user: User
     categories: seq[string]
     published: bool
-    points: array[0..4, int]
     watchers: seq[User]
-
+    points: array[0..4, int]
 
   User = object
     name: string

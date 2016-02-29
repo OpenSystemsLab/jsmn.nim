@@ -345,18 +345,13 @@ proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var 
     if $e == value:
       v = e
 
-proc loadValue[T: array](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
-  for x in 0..<v.len:
-    case t[idx + 1].kind
-    of JSMN_PRIMITIVE, JSMN_STRING:
-      loadValue(t, idx + 1 + x, json, v[x])
-    else:
-      let size = t[idx+1].size + 1
-      loadValue(t, idx + 1 + x * size, json, v[x])
-
-proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var seq) {.inline.} =
-  newSeq(v, t[idx].size)
-  for x in 0..<t[idx].size:
+proc loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+  when v is array:
+    let size = v.len
+  else:
+    let size = t[idx].size
+    newSeq(v, t[idx].size)
+  for x in 0..<size:
     case t[idx + 1].kind
     of JSMN_PRIMITIVE, JSMN_STRING:
       loadValue(t, idx + 1 + x, json, v[x])
@@ -368,15 +363,20 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
   ## reads data and transforms it to ``target``
   var
     i = start
+    endPos: int
     t: JsmnToken
     key: string
     maps = newTable[string, int](32)
 
   if tokens[start].kind != JSMN_OBJECT:
-    quit("Object expected", QuitFailure)
+    raise newException(ValueError, "Object expected " & $(tokens[start]))
 
+  endPos = tokens[start].stop
   while i < tokens.len-1:
     t = tokens[i]
+    # when t.start greater than endPos, the token is out of current object
+    if t.start >= endPos:
+      break
     if t.kind == JSMN_STRING:
       key = t.getValue(json)
       maps[key] = i+1
@@ -384,14 +384,17 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
       of JSMN_STRING, JSMN_PRIMITIVE:
         inc(i)
       of JSMN_ARRAY, JSMN_OBJECT:
-        inc(i, tokens[i+1].size + 1)
+        case tokens[i+2].kind:
+        of JSMN_STRING, JSMN_PRIMITIVE:
+          inc(i, tokens[i+1].size + 1) # skip string and primitive types
+        else:
+          inc(i, tokens[i+1].size * (tokens[i+2].size + 1)) # skip whole array or object
       else:
         discard
     inc(i)
 
   for n, v in fieldPairs(target):
     if maps.hasKey(n):
-      echo n, ", ", tokens[maps[n]]
       loadValue(tokens, maps[n], json, v)
 
 when isMainModule:
