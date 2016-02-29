@@ -46,7 +46,7 @@
 ##    echo "Kind: ", token.kind
 ##    echo "Value: ", json[token.start..<token.stop]
 
-import tables, strutils
+import strutils
 
 type
   JsmnKind* = enum ## JSON type identifier
@@ -305,47 +305,47 @@ proc parseJson*(json: string): seq[JsmnToken] =
     setLen(tokens, tokens.len * 2)
     ret = parseJson(json, tokens)
 
-proc getValue(t: JsmnToken, json: string): string =
+template getValue*(t: JsmnToken, json: string): expr =
   json[t.start..<t.stop]
 
 proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) {.inline.}
 
-proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
   loadObject(v, t, json, idx)
 
-proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var bool) {.inline.} =
+template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var bool): expr =
   let value = t[idx].getValue(json)
   v = value[0] == 't'
 
-proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var char) {.inline.} =
+template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var char): expr =
   let value = t[idx].getValue(json)
   if value.len > 0:
     v = value[0]
 
-proc loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+template loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
   when v is int:
     v = parseInt(t[idx].getValue(json))
   else:
     v = (T)parseInt(t[idx].getValue(json))
 
 
-proc loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+template loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
   when v is float:
     v = parseFloat(t[idx].getValue(json))
   else:
     v = (T)parseFloat(t[idx].getValue(json))
 
-proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var string) {.inline.} =
+template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var string): expr =
   if t[idx].kind == JSMN_STRING:
     v = t[idx].getValue(json)
 
-proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+template loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
   let value = t[idx].getValue(json)
   for e in low(v)..high(v):
     if $e == value:
       v = e
 
-proc loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
+template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
   when v is array:
     let size = v.len
   else:
@@ -364,38 +364,38 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
   var
     i = start
     endPos: int
-    t: JsmnToken
     key: string
-    maps = newTable[string, int](32)
+    tok, nxt, child: JsmnToken
 
   if tokens[start].kind != JSMN_OBJECT:
     raise newException(ValueError, "Object expected " & $(tokens[start]))
-
   endPos = tokens[start].stop
+
   while i < tokens.len-1:
-    t = tokens[i]
+    tok = tokens[i]
     # when t.start greater than endPos, the token is out of current object
-    if t.start >= endPos:
+    if tok.start >= endPos:
       break
-    if t.kind == JSMN_STRING:
-      key = t.getValue(json)
-      maps[key] = i+1
-      case tokens[i+1].kind
+    nxt = tokens[i+1]
+    if tok.kind == JSMN_STRING:
+      key = tok.getValue(json)
+      for n, v in fieldPairs(target):
+        if n == key:
+          loadValue(tokens, i+1, json, v)
+
+      case nxt.kind
       of JSMN_STRING, JSMN_PRIMITIVE:
         inc(i)
       of JSMN_ARRAY, JSMN_OBJECT:
-        case tokens[i+2].kind:
+        child = tokens[i+2]
+        case child.kind:
         of JSMN_STRING, JSMN_PRIMITIVE:
-          inc(i, tokens[i+1].size + 1) # skip string and primitive types
+          inc(i, nxt.size + 1) # skip string and primitive types
         else:
-          inc(i, tokens[i+1].size * (tokens[i+2].size + 1)) # skip whole array or object
+          inc(i, nxt.size * (child.size + 1)) # skip whole array or object
       else:
-        discard
+        raise newException(ValueError, "Invalid token " & $(nxt))
     inc(i)
-
-  for n, v in fieldPairs(target):
-    if maps.hasKey(n):
-      loadValue(tokens, maps[n], json, v)
 
 when isMainModule:
   const
