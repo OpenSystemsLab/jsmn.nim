@@ -305,10 +305,10 @@ proc parseJson*(json: string): seq[JsmnToken] =
     setLen(tokens, tokens.len * 2)
     ret = parseJson(json, tokens)
 
-proc getValue(t: JsmnToken, json: string): string {.inline, noSideEffect.} =
+proc getValue(t: JsmnToken, json: string): string =
   json[t.start..<t.stop]
 
-proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0)
+proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) {.inline.}
 
 proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
   loadObject(v, t, json, idx)
@@ -347,12 +347,22 @@ proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var 
 
 proc loadValue[T: array](t: openarray[JsmnToken], idx: int, json: string, v: var T) {.inline.} =
   for x in 0..<v.len:
-    loadValue(t, idx + 1 + x * t[idx + 1 + x].size, json, v[x])
+    case t[idx + 1].kind
+    of JSMN_PRIMITIVE, JSMN_STRING:
+      loadValue(t, idx + 1 + x, json, v[x])
+    else:
+      let size = t[idx+1].size + 1
+      loadValue(t, idx + 1 + x * size, json, v[x])
 
 proc loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var seq) {.inline.} =
   newSeq(v, t[idx].size)
   for x in 0..<t[idx].size:
-    loadValue(t, idx + 1 + x * t[idx + 1 + x].size, json, v[x])
+    case t[idx + 1].kind
+    of JSMN_PRIMITIVE, JSMN_STRING:
+      loadValue(t, idx + 1 + x, json, v[x])
+    else:
+      let size = t[idx+1].size + 1
+      loadValue(t, idx + 1 + x * size, json, v[x])
 
 proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) =
   ## reads data and transforms it to ``target``
@@ -381,6 +391,7 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
 
   for n, v in fieldPairs(target):
     if maps.hasKey(n):
+      echo n, ", ", tokens[maps[n]]
       loadValue(tokens, maps[n], json, v)
 
 when isMainModule:
