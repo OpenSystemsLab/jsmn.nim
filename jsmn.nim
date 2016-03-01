@@ -90,6 +90,8 @@ else:
 proc `$`(p: JsmnParser): string =
   "JsmnParser[Position: " & $p.pos  & ", NextTokenIndex: " & $p.toknext & ", SuperTokenIndex: " & $p.toksuper & "]"
 
+{.push boundChecks: off, overflowChecks: off.}
+
 proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = JSMN_UNDEFINED, start, stop = -1): ptr JsmnToken =
   ## Allocates a token and fills type and boundaries.
   if parser.toknext >= tokens.len - 1:
@@ -104,6 +106,7 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
     result.parent = -1
 
   inc(parser.toknext)
+
 
 proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int) =
   ## Fills next available token with JSON primitive.
@@ -289,6 +292,8 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
     dec(i)
   return count
 
+{.pop.}
+
 proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
   ## Parse a JSON data string into and array of tokens, each describing a single JSON object.
   var parser: JsmnParser
@@ -299,11 +304,14 @@ proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
 
 proc parseJson*(json: string): seq[JsmnToken] =
   ## Parse a JSON data and returns a sequence of tokens
-  var tokens = newSeq[JsmnToken](JSMN_TOKENS)
-  var ret = parseJson(json, tokens)
+  result = newSeq[JsmnToken](JSMN_TOKENS)
+  var ret = -1
   while ret < 0:
-    setLen(tokens, tokens.len * 2)
-    ret = parseJson(json, tokens)
+    try:
+      ret = parseJson(json, result)
+    except JsmnNotEnoughTokensException:
+      setLen(result, result.len + JSMN_TOKENS)
+
 
 template getValue*(t: JsmnToken, json: string): expr =
   json[t.start..<t.stop]
