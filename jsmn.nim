@@ -375,9 +375,9 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
     key: string
     tok, nxt, child: JsmnToken
 
-  if tokens[start].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(tokens[start]))
-  endPos = tokens[start].stop
+  if tokens[i].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(tokens[i]))
+  endPos = tokens[i].stop
 
   while i < tokens.len-1:
     tok = tokens[i]
@@ -404,6 +404,16 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, s
       else:
         raise newException(ValueError, "Invalid token " & $(nxt))
     inc(i)
+
+proc `[]`*[T](tokens: openarray[JsmnToken], sel: string): T =
+  #when result is bool:
+  #  loadValue(
+  var
+    i = 0
+  if tokens[i].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(tokens[i]))
+
+
 
 when isMainModule:
   const
