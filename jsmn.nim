@@ -210,7 +210,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
             break
           token = addr tokens[token.parent]
       else:
-        var i = parser.toknext
+        var i = parser.toknext - 1
         while i >= 0:
           token = addr tokens[i]
           if token.start != -1 and token.stop == -1:
@@ -311,49 +311,47 @@ proc parseJson*(json: string): seq[JsmnToken] =
       ret = parseJson(json, result)
     except JsmnNotEnoughTokensException:
       setLen(result, result.len + JSMN_TOKENS)
-
+  setLen(result, ret)
 
 template getValue*(t: JsmnToken, json: string): expr =
   json[t.start..<t.stop]
 
-proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) {.inline.}
+template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+  loadObject(v, t, numTokens, json, idx)
 
-template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
-  loadObject(v, t, json, idx)
-
-template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var bool): expr =
+template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var bool): expr =
   let value = t[idx].getValue(json)
   v = value[0] == 't'
 
-template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var char): expr =
+template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var char): expr =
   let value = t[idx].getValue(json)
   if value.len > 0:
     v = value[0]
 
-template loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
+template loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
   when v is int:
     v = parseInt(t[idx].getValue(json))
   else:
     v = (T)parseInt(t[idx].getValue(json))
 
 
-template loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
+template loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
   when v is float:
     v = parseFloat(t[idx].getValue(json))
   else:
     v = (T)parseFloat(t[idx].getValue(json))
 
-template loadValue(t: openarray[JsmnToken], idx: int, json: string, v: var string): expr =
+template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var string): expr =
   if t[idx].kind == JSMN_STRING:
     v = t[idx].getValue(json)
 
-template loadValue[T: enum](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
+template loadValue[T: enum](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
   let value = t[idx].getValue(json)
   for e in low(v)..high(v):
     if $e == value:
       v = e
 
-template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, json: string, v: var T): expr =
+template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
   when v is array:
     let size = v.len
   else:
@@ -362,68 +360,76 @@ template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, json: string
   for x in 0..<size:
     case t[idx + 1].kind
     of JSMN_PRIMITIVE, JSMN_STRING:
-      loadValue(t, idx + 1 + x, json, v[x])
+      loadValue(t, idx + 1 + x, numTokens, json, v[x])
     else:
       let size = t[idx+1].size + 1
-      loadValue(t, idx + 1 + x * size, json, v[x])
+      loadValue(t, idx + 1 + x * size, numTokens, json, v[x])
 
-proc loadObject*(target: var auto, tokens: openarray[JsmnToken], json: string, start = 0) =
+proc loadObject*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, start = 0) =
   ## reads data and transforms it to ``target``
   var
-    i = start
+    i = start + 1
     endPos: int
     key: string
-    tok, nxt, child: JsmnToken
+    tok, next, child: JsmnToken
 
-  if tokens[i].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(tokens[i]))
-  endPos = tokens[i].stop
+  if tokens[start].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(tokens[start]))
 
-  while i < tokens.len-1:
+  ## TODO: sum all tokens of an object, then make it a while stopper
+  endPos = tokens[start].stop
+  while i < numTokens:
     tok = tokens[i]
     # when t.start greater than endPos, the token is out of current object
     if tok.start >= endPos:
       break
-    nxt = tokens[i+1]
-    if tok.kind == JSMN_STRING:
-      key = tok.getValue(json)
-      for n, v in fieldPairs(target):
-        if n == key:
-          loadValue(tokens, i+1, json, v)
 
-      case nxt.kind
-      of JSMN_STRING, JSMN_PRIMITIVE:
-        inc(i)
-      of JSMN_ARRAY, JSMN_OBJECT:
-        child = tokens[i+2]
-        case child.kind:
-        of JSMN_STRING, JSMN_PRIMITIVE:
-          inc(i, nxt.size + 1) # skip string and primitive types
-        else:
-          inc(i, nxt.size * (child.size + 1)) # skip whole array or object
+    assert tok.kind == JSMN_STRING
+    key = tok.getValue(json)
+    for n, v in fieldPairs(target):
+      if n == key:
+        loadValue(tokens, i+1, numTokens, json, v)
+
+    next = tokens[i+1]
+    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
+      child = tokens[i+2]
+      if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+        inc(i, next.size * (child.size + 1))  # skip whole array or object
       else:
-        raise newException(ValueError, "Invalid token " & $(nxt))
-    inc(i)
+        inc(i, next.size + 2)
+    else:
+      inc(i, 2)
 
-proc `[]`*[T](tokens: openarray[JsmnToken], sel: string): T =
-  #when result is bool:
-  #  loadValue(
+proc getString*(tokens: openarray[JsmnToken], json: string, key: string): string =
   var
     i = 0
+    endPos = tokens[i].stop
+    tok, next, child: JsmnToken
+
   if tokens[i].kind != JSMN_OBJECT:
     raise newException(ValueError, "Object expected " & $(tokens[i]))
 
-
-
-when isMainModule:
-  const
-    json = "{\"user\": \"johndoe\", \"admin\": false, \"uid\": 1000, \"groups\": [\"users\", \"wheel\", \"audio\", \"video\"]}"
-
-  var
-    tokens: array[16, JsmnToken]
-
-  let r = parseJson(json, tokens)
-  for i in 1..r:
-    var token = addr tokens[i]
-    echo "Kind: ", token.kind
-    echo "Value: ", json[token.start..<token.stop]
+  while i < tokens.len-1:
+    inc(i)
+    tok = tokens[i]
+    if tok.start >= endPos or tok.kind == JSMN_UNDEFINED:
+      break
+    next = tokens[i + 1]
+    echo tok, tok.getValue(json)
+    if tok.kind == JSMN_STRING:
+      if key == tok.getValue(json):
+        result = next.getValue(json)
+        break
+      else:
+        case next.kind
+        of JSMN_STRING, JSMN_PRIMITIVE:
+          inc(i)
+        of JSMN_ARRAY, JSMN_OBJECT:
+          child = tokens[i+2]
+          case child.kind:
+          of JSMN_STRING, JSMN_PRIMITIVE:
+            inc(i, next.size + 1) # skip string and primitive types
+          else:
+            inc(i, next.size * (child.size + 1)) # skip whole array or object
+        else:
+          raise newException(ValueError, "Invalid token " & $(next))
