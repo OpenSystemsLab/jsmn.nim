@@ -70,11 +70,6 @@ type
     toknext: int
     toksuper: int
 
-  Jsmn* = object
-    tokens: seq[JsmnToken]
-    json: string
-    index: int
-
   JsmnException* = object of ValueError
 
   JsmnNotEnoughTokensException* = object of JsmnException
@@ -318,7 +313,7 @@ proc parseJson*(json: string): seq[JsmnToken] =
       setLen(result, result.len + JSMN_TOKENS)
   setLen(result, ret)
 
-template getValue*(t: JsmnToken, json: string): expr =
+template getValue(t: JsmnToken, json: string): expr =
   json[t.start..<t.stop]
 
 template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
@@ -410,34 +405,107 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], numTokens: int,
 
     next()
 
-proc get(v: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, key: string) {.inline.} =
-  var
-    i = 1
-    endPos = tokens[i].stop
-    tok: JsmnToken
-
-  if tokens[0].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(tokens[0]))
-
-  while i < numTokens:
-    tok = tokens[i]
-    if tok.start >= endPos:
-      break
-
-    if key == tok.getValue(json):
-      loadValue(tokens, i+1, numTokens, json, v)
-      break
-    next()
 
 {.pop.}
 
-proc newJsmn*(json: string): Jsmn =
-  result.tokens = parseJson(json)
-  result.json = json
-  result.index = 0
+type
+  JsmnBase* = object
+    tokens: seq[JsmnToken]
+    json: string
+    numTokens: int
 
-proc `[]`*(o: Jsmn, key: string): Jsmn =
-  discard
-proc getString*(tokens: openarray[JsmnToken], numTokens: int, json: string, key: string): string =
-  result = ""
-  get(result, tokens, numTokens, json, key)
+  JsmnNode* = object
+    base: JsmnBase
+    pos*: int
+
+proc Jsmn*(json: string): JsmnBase =
+  result.tokens = parseJson(json)
+  result.numTokens = result.tokens.len
+  result.json = json
+
+
+proc find(o: JsmnBase, key: string, start = 0): int =
+  result = -1
+  var
+    i = start + 1
+    tok: JsmnToken
+  let
+    endPos = o.tokens[start].stop
+    tokens = o.tokens
+
+  if o.tokens[start].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(o.tokens[start]))
+
+  while i < o.numTokens:
+    tok = o.tokens[i]
+    if tok.start >= endPos:
+      raise newException(FieldError, key & " is not accessible")
+
+    if key == tok.getValue(o.json):
+      result = i + 1
+      break
+    next()
+
+
+proc `[]`*(o: JsmnBase, key: string, start = 0): JsmnNode =
+  ## Get a field from a json object, raises `FieldError` if field does not exists
+  assert o.tokens[start].kind == JSMN_OBJECT
+
+  result.pos = o.find(key, start)
+  result.base = o
+
+proc `[]`*(o: JsmnBase, idx: int, start = 0): JsmnNode =
+  ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
+  assert o.tokens[start].kind == JSMN_ARRAY
+  if o.tokens[start].size <= 0:
+    raise newException(IndexError, "index out of bounds")
+  let child = o.tokens[start + 1]
+  if idx == 0:
+    result.pos = start + 1
+  else:
+    result.pos = start + 1 + child.size * idx
+
+  result.base = o
+
+proc len*(o: JsmnBase, start = 0): int =
+  ## Returns the number of elements in a json array
+  assert o.tokens[start].kind == JSMN_ARRAY
+  o.tokens[start].size
+
+proc hasKey*(o: JsmnBase, key: string, start = 0): bool =
+  ## Checks if field exists in object
+  assert o.tokens[start].kind == JSMN_OBJECT
+  var pos = -1
+  try:
+    pos = o.find(key, start)
+  except FieldError:
+    discard
+  result = pos >= start
+
+template `[]`*(o: JsmnNode, key: string): expr =
+  o.base[key, o.pos]
+
+template `[]`*(o: JsmnNode, idx: int): expr =
+    o.base[idx, o.pos]
+
+template len*(o: JsmnNode): expr =
+  o.base.len(o.pos)
+
+template hasKey*(o: JsmnNode, key: string, start = 0): bool =
+  o.base.hasKey(key, start)
+
+proc getStr*(node: JsmnNode): string {.inline.} =
+  assert node.base.tokens[node.pos].kind == JSMN_STRING
+  loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
+
+proc getInt*(node: JsmnNode): int {.inline.} =
+  assert node.base.tokens[node.pos].kind == JSMN_PRIMITIVE
+  loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
+
+proc getFloat*(node: JsmnNode): float {.inline.} =
+  assert node.base.tokens[node.pos].kind == JSMN_PRIMITIVE
+  loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
+
+proc getBool*(node: JsmnNode): bool {.inline.} =
+  assert node.base.tokens[node.pos].kind == JSMN_PRIMITIVE
+  loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
