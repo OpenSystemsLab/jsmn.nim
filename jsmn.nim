@@ -313,7 +313,7 @@ proc parseJson*(json: string): seq[JsmnToken] =
       setLen(result, result.len + JSMN_TOKENS)
   setLen(result, ret)
 
-template getValue(t: JsmnToken, json: string): expr =
+template getValue*(t: JsmnToken, json: string): expr =
   json[t.start..<t.stop]
 
 template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
@@ -463,7 +463,11 @@ proc `[]`*(o: JsmnBase, idx: int, start = 0): JsmnNode =
   if idx == 0:
     result.pos = start + 1
   else:
-    result.pos = start + 1 + child.size * idx
+    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      result.pos = start + 1 + (1 + child.size) * idx
+    else:
+      result.pos = start + idx
+
 
   result.base = o
 
@@ -509,3 +513,57 @@ proc getFloat*(node: JsmnNode): float {.inline.} =
 proc getBool*(node: JsmnNode): bool {.inline.} =
   assert node.base.tokens[node.pos].kind == JSMN_PRIMITIVE
   loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
+
+
+iterator items*(o: JsmnBase, start = 0): JsmnNode =
+  assert o.tokens[start].kind == JSMN_ARRAY
+  var
+    i = 0
+    node: JsmnNode
+
+  while i < o.tokens[start].size:
+    let child = o.tokens[start + 1]
+    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      node.pos = start + 1 + (1 + child.size) * i
+    else:
+      node.pos = start + i
+    node.base = o
+    yield node
+
+iterator items*(o: JsmnNode, start = 0): JsmnNode =
+  for n in items(o.base, start):
+    yield n
+
+iterator pairs*(o: JsmnBase, start = 0): tuple[key: string, val: JsmnNode] =
+  assert o.tokens[start].kind == JSMN_OBJECT
+
+  var
+    i = start + 1
+    tok: JsmnToken
+    key: string
+    val: JsmnNode
+  let
+    endPos = o.tokens[start].stop
+    tokens = o.tokens
+
+  while i < o.numTokens:
+    tok = o.tokens[i]
+    if tok.start >= endPos:
+      raise newException(FieldError, key & " is not accessible")
+
+    key = tok.getValue(o.json)
+    val.pos = i + 1
+    val.base = o
+    yield (key, val)
+
+    next()
+
+iterator pairs*(o: JsmnNode): tuple[key: string, val: JsmnNode] =
+  for p in pairs(o.base, o.pos):
+    yield p
+
+proc loadObject*(o: JsmnBase, target: var auto, start = 0) =
+  loadObject(target, o.tokens, o.numTokens, o.json, start)
+
+proc loadObject*(o: JsmnNode, target: var auto) =
+  o.base.loadObject(target, o.pos)
