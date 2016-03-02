@@ -492,9 +492,9 @@ proc `[]`*(o: JsmnNode, key: string): JsmnNode  =
   result = o
 
 proc `[]`*(o: JsmnNode, idx: int): JsmnNode =
-  assert o.tokens[start].kind == JSMN_ARRAY
+  assert o.base.tokens[o.pos].kind == JSMN_ARRAY
 
-  if o.tokens[o.pos].size <= 0:
+  if o.base.tokens[o.pos].size <= 0:
     raise newException(IndexError, "index out of bounds")
 
   let child = o.base.tokens[o.pos + 1]
