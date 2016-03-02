@@ -487,13 +487,16 @@ proc hasKey*(o: JsmnBase, key: string, start = 0): bool =
     discard
   result = pos >= start
 
-proc `[]`*(o: JsmnNode, key: string): JsmnNode =
+proc `[]`*(o: JsmnNode, key: string): JsmnNode  =
   o.pos = o.base.find(key, o.pos)
   result = o
-#  o.base[key, o.pos]
 
 proc `[]`*(o: JsmnNode, idx: int): JsmnNode =
-#    o.base[idx, o.pos]
+  assert o.tokens[start].kind == JSMN_ARRAY
+
+  if o.tokens[o.pos].size <= 0:
+    raise newException(IndexError, "index out of bounds")
+
   let child = o.base.tokens[o.pos + 1]
   if idx == 0:
     o.pos = o.pos + 1
