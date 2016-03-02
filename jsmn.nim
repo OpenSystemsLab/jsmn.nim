@@ -70,6 +70,11 @@ type
     toknext: int
     toksuper: int
 
+  Jsmn* = object
+    tokens: seq[JsmnToken]
+    json: string
+    index: int
+
   JsmnException* = object of ValueError
 
   JsmnNotEnoughTokensException* = object of JsmnException
@@ -365,13 +370,26 @@ template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: i
       let size = t[idx+1].size + 1
       loadValue(t, idx + 1 + x * size, numTokens, json, v[x])
 
+template next(): expr {.immediate.} =
+  let next = tokens[i+1]
+  if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
+    let child = tokens[i+2]
+    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      inc(i, next.size * (child.size + 1))  # skip whole array or object
+    else:
+      inc(i, next.size + 2)
+  else:
+    inc(i, 2)
+
+
+{.push boundChecks: off, overflowChecks: off.}
 proc loadObject*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, start = 0) =
   ## reads data and transforms it to ``target``
   var
     i = start + 1
     endPos: int
     key: string
-    tok, next, child: JsmnToken
+    tok: JsmnToken
 
   if tokens[start].kind != JSMN_OBJECT:
     raise newException(ValueError, "Object expected " & $(tokens[start]))
@@ -390,46 +408,36 @@ proc loadObject*(target: var auto, tokens: openarray[JsmnToken], numTokens: int,
       if n == key:
         loadValue(tokens, i+1, numTokens, json, v)
 
-    next = tokens[i+1]
-    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
-      child = tokens[i+2]
-      if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-        inc(i, next.size * (child.size + 1))  # skip whole array or object
-      else:
-        inc(i, next.size + 2)
-    else:
-      inc(i, 2)
+    next()
 
-proc getString*(tokens: openarray[JsmnToken], json: string, key: string): string =
+proc get(v: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, key: string) {.inline.} =
   var
-    i = 0
+    i = 1
     endPos = tokens[i].stop
-    tok, next, child: JsmnToken
+    tok: JsmnToken
 
-  if tokens[i].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(tokens[i]))
+  if tokens[0].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(tokens[0]))
 
-  while i < tokens.len-1:
-    inc(i)
+  while i < numTokens:
     tok = tokens[i]
-    if tok.start >= endPos or tok.kind == JSMN_UNDEFINED:
+    if tok.start >= endPos:
       break
-    next = tokens[i + 1]
-    echo tok, tok.getValue(json)
-    if tok.kind == JSMN_STRING:
-      if key == tok.getValue(json):
-        result = next.getValue(json)
-        break
-      else:
-        case next.kind
-        of JSMN_STRING, JSMN_PRIMITIVE:
-          inc(i)
-        of JSMN_ARRAY, JSMN_OBJECT:
-          child = tokens[i+2]
-          case child.kind:
-          of JSMN_STRING, JSMN_PRIMITIVE:
-            inc(i, next.size + 1) # skip string and primitive types
-          else:
-            inc(i, next.size * (child.size + 1)) # skip whole array or object
-        else:
-          raise newException(ValueError, "Invalid token " & $(next))
+
+    if key == tok.getValue(json):
+      loadValue(tokens, i+1, numTokens, json, v)
+      break
+    next()
+
+{.pop.}
+
+proc newJsmn*(json: string): Jsmn =
+  result.tokens = parseJson(json)
+  result.json = json
+  result.index = 0
+
+proc `[]`*(o: Jsmn, key: string): Jsmn =
+  discard
+proc getString*(tokens: openarray[JsmnToken], numTokens: int, json: string, key: string): string =
+  result = ""
+  get(result, tokens, numTokens, json, key)
