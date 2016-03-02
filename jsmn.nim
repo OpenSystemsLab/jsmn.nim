@@ -414,9 +414,11 @@ type
     json: string
     numTokens: int
 
-  JsmnNode* = object
+  JsmnNodeObj = object
     base: JsmnBase
     pos*: int
+
+  JsmnNode = ref JsmnNodeObj
 
 proc Jsmn*(json: string): JsmnBase =
   result.tokens = parseJson(json)
@@ -446,17 +448,18 @@ proc find(o: JsmnBase, key: string, start = 0): int =
       break
     next()
 
-
 proc `[]`*(o: JsmnBase, key: string, start = 0): JsmnNode =
   ## Get a field from a json object, raises `FieldError` if field does not exists
   assert o.tokens[start].kind == JSMN_OBJECT
-
+  new(result)
   result.pos = o.find(key, start)
   result.base = o
 
 proc `[]`*(o: JsmnBase, idx: int, start = 0): JsmnNode =
   ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
   assert o.tokens[start].kind == JSMN_ARRAY
+  new(result)
+
   if o.tokens[start].size <= 0:
     raise newException(IndexError, "index out of bounds")
   let child = o.tokens[start + 1]
@@ -467,8 +470,6 @@ proc `[]`*(o: JsmnBase, idx: int, start = 0): JsmnNode =
       result.pos = start + 1 + (1 + child.size) * idx
     else:
       result.pos = start + idx
-
-
   result.base = o
 
 proc len*(o: JsmnBase, start = 0): int =
@@ -486,11 +487,22 @@ proc hasKey*(o: JsmnBase, key: string, start = 0): bool =
     discard
   result = pos >= start
 
-template `[]`*(o: JsmnNode, key: string): expr =
-  o.base[key, o.pos]
+proc `[]`*(o: JsmnNode, key: string): JsmnNode =
+  o.pos = o.base.find(key, o.pos)
+  result = o
+#  o.base[key, o.pos]
 
-template `[]`*(o: JsmnNode, idx: int): expr =
-    o.base[idx, o.pos]
+proc `[]`*(o: JsmnNode, idx: int): JsmnNode =
+#    o.base[idx, o.pos]
+  let child = o.base.tokens[o.pos + 1]
+  if idx == 0:
+    o.pos = o.pos + 1
+  else:
+    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      o.pos = o.pos + 1 + (1 + child.size) * idx
+    else:
+      o.pos = o.pos + idx
+  result = o
 
 template len*(o: JsmnNode): expr =
   o.base.len(o.pos)
