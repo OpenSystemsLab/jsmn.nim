@@ -514,12 +514,12 @@ proc getBool*(node: JsmnNode): bool {.inline.} =
   assert node.base.tokens[node.pos].kind == JSMN_PRIMITIVE
   loadValue(node.base.tokens, node.pos, node.base.numTokens, node.base.json, result)
 
-
 iterator items*(o: JsmnBase, start = 0): JsmnNode =
   assert o.tokens[start].kind == JSMN_ARRAY
   var
     i = 0
     node: JsmnNode
+    tokens = o.tokens
 
   while i < o.tokens[start].size:
     let child = o.tokens[start + 1]
@@ -529,9 +529,10 @@ iterator items*(o: JsmnBase, start = 0): JsmnNode =
       node.pos = start + i
     node.base = o
     yield node
+    next()
 
-iterator items*(o: JsmnNode, start = 0): JsmnNode =
-  for n in items(o.base, start):
+iterator items*(o: JsmnNode): JsmnNode =
+  for n in items(o.base, o.pos):
     yield n
 
 iterator pairs*(o: JsmnBase, start = 0): tuple[key: string, val: JsmnNode] =
