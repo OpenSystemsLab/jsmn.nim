@@ -586,3 +586,41 @@ iterator pairs*(o: JsmnObj, start = 0): tuple[key: string, val: JsmnNode] =
 iterator pairs*(o: JsmnNode): tuple[key: string, val: JsmnNode] =
   for p in pairs(o.root, o.pos):
     yield p
+
+from json import escapeJson
+proc stringify*[T](a: T, x: var string) =
+  when a is object or a is tuple:
+    x.add "{"
+    var i = 0
+    for n, v in fieldPairs(a):
+      inc(i)
+    for n, v in fieldPairs(a):
+      dec(i)
+      x.add "\"" & n & "\""
+      x.add ":"
+      stringify(v, x)
+      if i > 0:
+        x.add ','
+    x.add "}"
+  elif a is string:
+    x.add escapeJson(a)
+  elif a is char:
+    x.add "\"" & $a & "\""
+  elif a is bool:
+    if a:
+      x.add "true"
+    else:
+      x.add "false"
+  elif a is array or a is seq:
+    x.add "["
+    var i = a.len
+    for e in a:
+      dec(i)
+      stringify(e, x)
+      if i > 0:
+        x.add ","
+    x.add "]"
+  elif a is enum:
+    x.add "\"" & $a & "\""
+  else:
+    x.add $a
