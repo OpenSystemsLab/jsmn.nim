@@ -60,7 +60,7 @@ type
     start*: int ## start position in JSON data string
     stop*: int ## end position in JSON data string
     size*: int
-    when defined(JSMN_PARENT_LINKS):
+    when not defined(JSMN_NO_PARENT_LINKS):
       parent*: int
 
   JsmnParser = object
@@ -100,7 +100,7 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
   result.start = start
   result.stop = stop
   result.size = 0
-  when defined(JSMN_PARENT_LINKS):
+  when not defined(JSMN_NO_PARENT_LINKS):
     result.parent = -1
 
   inc(parser.toknext)
@@ -112,7 +112,7 @@ proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken], js
   while parser.pos < length and json[parser.pos] != '\0':
     case json[parser.pos]
     of PRIMITIVE_DELIMITERS:
-      when defined(JSMN_PARENT_LINKS):
+      when not defined(JSMN_NO_PARENT_LINKS):
         var token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
         token.parent = parser.toksuper
         assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
@@ -139,7 +139,7 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json:
     let c = json[parser.pos]
     # Quote: end of string
     if c == '"':
-      when defined(JSMN_PARENT_LINKS):
+      when not defined(JSMN_NO_PARENT_LINKS):
         var token = initToken(parser, tokens, JSMN_STRING, start + 1, parser.pos)
         token.parent = parser.toksuper
         assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
@@ -184,7 +184,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
       if parser.toksuper != -1:
         assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
         inc(tokens[parser.toksuper].size)
-        when defined(JSMN_PARENT_LINKS):
+        when not defined(JSMN_NO_PARENT_LINKS):
           token.parent = parser.toksuper
           assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
       token.kind = (if c == '{': JSMN_OBJECT else: JSMN_ARRAY)
@@ -193,7 +193,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
       assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
     of '}', ']':
       kind = (if c == '}': JSMN_OBJECT else: JSMN_ARRAY)
-      when defined(JSMN_PARENT_LINKS):
+      when not defined(JSMN_NO_PARENT_LINKS):
         if parser.toknext < 1:
           raise newException(JsmnBadTokenException, $parser)
         token = addr tokens[parser.toknext - 1]
@@ -246,7 +246,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
       if parser.toksuper != -1 and
          tokens[parser.toksuper].kind != JSMN_ARRAY and
          tokens[parser.toksuper].kind != JSMN_OBJECT:
-        when defined(JSMN_PARENT_LINKS):
+        when not defined(JSMN_NO_PARENT_LINKS):
           parser.toksuper = tokens[parser.toksuper].parent
         else:
           var i = parser.toknext - 1
