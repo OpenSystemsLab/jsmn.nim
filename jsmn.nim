@@ -309,4 +309,7 @@ proc parseJson*(json: string): seq[JsmnToken] =
       ret = parseJson(json, result)
     except JsmnNotEnoughTokensException:
       setLen(result, result.len + JSMN_TOKENS)
+    except:
+      raise getCurrentException()
+
   setLen(result, ret)
