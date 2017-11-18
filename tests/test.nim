@@ -19,33 +19,34 @@ proc check[Ty](s: string, status, numtok: int, x: varargs[Ty, initTok]) =
   var t = newSeq[JsmnToken](numtok)
   let r = parseJson(s, t)
   if r != status:
-    echo(format("status is $1, not $2", r, status))
-    assert false
+    let msg = format("status is $1, not $2", r, status)
+    assert false, msg
   if r >= 0:
     for i in 0 ..< numtok:
       if t[i].kind != x[i].kind:
-        echo(format("token $1 kind is $2, not $3", i, t[i].kind, x[i].kind))
-        assert false
+        let msg = format("token $1 kind is $2, not $3", i, t[i].kind, x[i].kind)
+        assert false, msg
       if x[i].start != -1 and x[i].stop != -1:
         if t[i].start != x[i].start:
-          echo(format("token $1 start is $2, not $3", i, t[i].start, x[i].start))
-          assert false
+          let msg = format("token $1 start is $2, not $3", i, t[i].start, x[i].start)
+          assert false, msg
         if t[i].stop != x[i].stop:
-          echo(format("token $1 last is $2, not $3", i, t[i].stop, x[i].stop))
-          assert false
+          let msg = format("token $1 last is $2, not $3", i, t[i].stop, x[i].stop)
+          assert false, msg
       if x[i].size != -1 and t[i].size != x[i].size:
-        echo(format("token $1 size is $2, not $3", i, t[i].size, x[i].size))
-        assert false
+        let msg = format("token $1 size is $2, not $3", i, t[i].size, x[i].size)
+        assert false, msg
       if s != "" and x[i].value != "":
-        let p = substr(s, t[i].start, t[i].stop - t[i].start)
-        if len(x[i].value) != t[i].stop - t[i].start or p != x[i].value:
-          echo(format("token $1 value is $2, not $3", i, p, x[i].value))
-          assert false
+        let n = t[i].stop - t[i].start
+        let p = substr(s, t[i].start, n)
+        if len(x[i].value) != n or p != x[i].value:
+          let msg = format("token $1 value is $2, not $3", i, p, x[i].value)
+          assert false, msg
 
 block: # Empty
   check("{}", 1, 1, (JSMN_OBJECT, 0, 2, 0))
   check("[]", 1, 1, (JSMN_ARRAY, 0, 2, 0))
-  check("[{},{}]", 3, 4,
+  check("[{},{}]", 3, 3,
     (JSMN_ARRAY, 0, 7, 2),
     (JSMN_OBJECT, 1, 3, 0),
     (JSMN_OBJECT, 4, 6, 0))
