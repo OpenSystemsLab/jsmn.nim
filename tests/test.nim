@@ -1,4 +1,4 @@
-import jsmn, strutils
+import ../jsmn, strutils
 
 type
   TestToken = object
