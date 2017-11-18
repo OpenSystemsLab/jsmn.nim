@@ -15,20 +15,6 @@ proc initTok(t: tuple[k: JsmnKind; s: string; x: int]): TestToken =
 proc initTok(t: tuple[k: JsmnKind; s: string]): TestToken =
   TestToken(kind: t.k, value: t.s, start: -1, stop: -1, size: -1)
 
-proc cmpExact(a, b: string, blen: int): int =
-  var i = 0
-  var j = 0
-  result = 1
-  while j < blen:
-    var aa = a[i]
-    var bb = b[j]
-    result = int(aa) - int(bb)
-    if (result != 0) or (aa == '\0'): break
-    inc(i)
-    inc(j)
-  if result == 0:
-    if a[i] != '\0': result = 1
-
 proc check[Ty](s: string, status, numtok: int, x: varargs[Ty, initTok]) =
   var t = newSeq[JsmnToken](numtok)
   let r = parseJson(s, t)
@@ -51,14 +37,12 @@ proc check[Ty](s: string, status, numtok: int, x: varargs[Ty, initTok]) =
         echo(format("token $1 size is $2, not $3", i, t[i].size, x[i].size))
         assert false
       if s != "" and x[i].value != "":
-        let p = substr(s, t[i].start)
-        if len(x[i].value) != t[i].stop - t[i].start or
-            cmpExact(p, x[i].value, t[i].stop - t[i].start) != 0:
+        let p = substr(s, t[i].start, t[i].stop - t[i].start)
+        if len(x[i].value) != t[i].stop - t[i].start or p != x[i].value:
           echo(format("token $1 value is $2, not $3", i, p, x[i].value))
           assert false
 
-when false:
-  # Empty
+block: # Empty
   check("{}", 1, 1, (JSMN_OBJECT, 0, 2, 0))
   check("[]", 1, 1, (JSMN_ARRAY, 0, 2, 0))
   check("[{},{}]", 3, 4,
@@ -66,7 +50,7 @@ when false:
     (JSMN_OBJECT, 1, 3, 0),
     (JSMN_OBJECT, 4, 6, 0))
 
-  # Primitive
+block: # Primitive
   check("{\"boolVar\" : true }", 3, 3,
     (JSMN_OBJECT, -1, -1, 1),
     (JSMN_STRING, "boolVar", 1),
