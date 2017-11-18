@@ -78,12 +78,6 @@ type
 const
   JSMN_TOKENS = 256
 
-when defined(JSMN_STRICT):
-  # In strict mode primitive must be followed by "," or "}" or "]"
-  const PRIMITIVE_DELIMITERS = ['\x09', '\x0D', '\x0A', ' ', ',', ']', '}']
-else:
-  const PRIMITIVE_DELIMITERS = [':', '\x09', '\x0D', '\x0A', ' ', ',', ']', '}']
-
 proc `$`(p: JsmnParser): string =
   "JsmnParser[Position: " & $p.pos  & ", NextTokenIndex: " & $p.toknext & ", SuperTokenIndex: " & $p.toksuper & "]"
 
@@ -111,7 +105,7 @@ template found(): untyped =
   var token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
   when not defined(JSMN_NO_PARENT_LINKS):
     token.parent = parser.toksuper
-    assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
+    assert tokens[token.parent].kind == JSMN_STRING
   dec(parser.pos)
   return
 
@@ -146,7 +140,7 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json:
       var token = initToken(parser, tokens, JSMN_STRING, start + 1, parser.pos)
       when not defined(JSMN_NO_PARENT_LINKS):
         token.parent = parser.toksuper
-        assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
+        assert tokens[token.parent].kind != JSMN_PRIMITIVE
       return
     if c == '\x08' and parser.pos + 1 < length:
       inc(parser.pos)
@@ -175,7 +169,7 @@ template default(): untyped =
   parsePrimitive(parser, tokens, json, length)
   inc(count)
   if parser.toksuper != -1:
-    assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
+    assert tokens[parser.toksuper].kind == JSMN_STRING
     inc(tokens[parser.toksuper].size)
   
 proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int): int =
@@ -192,11 +186,11 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
       inc(count)
       token = initToken(parser, tokens)
       if parser.toksuper != -1:
-        assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
+        assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind != JSMN_OBJECT
         inc(tokens[parser.toksuper].size)
         when not defined(JSMN_NO_PARENT_LINKS):
           token.parent = parser.toksuper
-          assert tokens[token.parent].kind != JSMN_STRING and tokens[token.parent].kind != JSMN_PRIMITIVE
+          assert tokens[token.parent].kind == JSMN_STRING or tokens[token.parent].kind != JSMN_OBJECT
       token.kind = (if c == '{': JSMN_OBJECT else: JSMN_ARRAY)
       token.start = parser.pos
       parser.toksuper = parser.toknext - 1
@@ -235,22 +229,19 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
           token = addr tokens[i]
           if token.start != -1 and token.stop == -1:
             parser.toksuper = i
-            assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
+            assert tokens[parser.toksuper].kind != JSMN_STRING
             break
           dec(i)
     of '"':
       parseString(parser, tokens, json, length)
       inc(count)
       if parser.toksuper != -1:
-        assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
         inc(tokens[parser.toksuper].size)
     of '\t', '\r', '\x0A', ' ':
       discard
     of ':':
-      let i = parser.toknext - 1
-      if tokens[i].kind != JSMN_STRING and tokens[i].kind != JSMN_PRIMITIVE:
-        parser.toksuper = i
-        assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
+      parser.toksuper = parser.toknext - 1
+      assert tokens[parser.toksuper].kind == JSMN_STRING
     of ',':
       if parser.toksuper != -1 and
          tokens[parser.toksuper].kind != JSMN_ARRAY and

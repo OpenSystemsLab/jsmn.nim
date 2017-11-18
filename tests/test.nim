@@ -38,7 +38,7 @@ proc check[Ty](s: string, status, numtok: int, x: varargs[Ty, initTok]) =
         assert false, msg
       if s != "" and x[i].value != "":
         let n = t[i].stop - t[i].start
-        let p = substr(s, t[i].start, n)
+        let p = s[t[i].start..<t[i].stop]
         if len(x[i].value) != n or p != x[i].value:
           let msg = format("token $1 value is $2, not $3", i, p, x[i].value)
           assert false, msg
