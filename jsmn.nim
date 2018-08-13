@@ -59,8 +59,7 @@ type
     start*: int ## start position in JSON data string
     stop*: int ## end position in JSON data string
     size*: int
-    when not defined(JSMN_NO_PARENT_LINKS):
-      parent*: int
+    parent*: int
 
   JsmnParser = object
     pos: int
