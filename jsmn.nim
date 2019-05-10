@@ -74,8 +74,11 @@ type
     ## bad token, JSON string is corrupted
   JsmnNotEnoughJsonDataException* = object of JsmnException
     ## JSON string is too short, expecting more JSON data
-const
-  JSMN_TOKENS = 256
+
+const JSMN_TOKENS = 256
+
+when defined(verbose):
+  var JSON_STRING: string
 
 proc `$`(p: JsmnParser): string =
   "JsmnParser[Position: " & $p.pos  & ", NextTokenIndex: " & $p.toknext & ", SuperTokenIndex: " & $p.toksuper & "]"
@@ -101,10 +104,19 @@ when defined(JSMN_STRICT):
 else:
   const afterPrimitiveSet =  {'\t', '\r', '\n', ' ', ',', ']', '}'}
 
+proc incSize(tokens: var openarray[JsmnToken], pos: int) {.inline.} =
+  var token = addr tokens[pos]
+  when defined(verbose):
+    var parent = tokens[token.parent]
+    echo "parent: ", parent
+    if token.stop != -1:
+      echo "incSize: ", JSON_STRING[token.start..<token.stop], " ", token[]
+  inc(token.size)
+
 proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int) =
   ## Fills next available token with JSON primitive.
   var start = parser.pos
-  while parser.pos < length and json[parser.pos] != '\0':
+  while parser.pos < length:
     let c = json[parser.pos]
     if c in afterPrimitiveSet:
       if tokens.len <= 0:
@@ -128,7 +140,7 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json:
   let start = parser.pos
   inc(parser.pos)
   # Skip starting quote
-  while parser.pos < length and json[parser.pos] != '\0':
+  while parser.pos < length:
     let c = json[parser.pos]
     # Quote: end of string
     if c == '"':
@@ -137,15 +149,15 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json:
         token.parent = parser.toksuper
         assert tokens[token.parent].kind != JSMN_PRIMITIVE
       return
-    if c == '\x08' and parser.pos + 1 < length:
+    elif c == '\\' and parser.pos + 1 < length:
       inc(parser.pos)
-      case json[parser.pos]     # Allowed escaped symbols
-      of '\"', '/', '\x08', 'b', 'f', 'r', 'n', 't':
+      # Allowed escaped symbols
+      if json[parser.pos] in {'"', '/', '\\', 'b', 'f', 'r', 'n', 't'}:
         discard
-      of 'u':
+      elif json[parser.pos] == 'u':
         inc(parser.pos)
         var i = 0
-        while i < 4 and parser.pos < length and json[parser.pos] != '\0':
+        while i < 4 and parser.pos < length:
           # If it isn't a hex character we have an error
           if not ((json[parser.pos] >= '0' and json[parser.pos] <= '9') or
               (json[parser.pos] >= 'A' and json[parser.pos] <= 'F') or
@@ -159,30 +171,24 @@ proc parseString(parser: var JsmnParser, tokens: var openarray[JsmnToken], json:
     inc(parser.pos)
   raise newException(JsmnBadTokenException, $parser)
 
-
-template default(): untyped =
-  parsePrimitive(parser, tokens, json, length)
-  inc(count)
-  if parser.toksuper != -1:
-    assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind == JSMN_ARRAY
-    inc(tokens[parser.toksuper].size)
-
 proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int): int =
   ## Parse JSON string and fill tokens.
-  if tokens.len <= 0:
-    return 0
-  var token: ptr JsmnToken
-  var count = parser.toknext
-  while parser.pos < length and json[parser.pos] != '\0':
-    var kind: JsmnKind
-    var c = json[parser.pos]
+  var
+    token: ptr JsmnToken
+    kind: JsmnKind
+    c: char
+  result = parser.toknext
+  while parser.pos < length:
+    c = json[parser.pos]
     case c
+    of '\0':
+      break
     of '{', '[':
-      inc(count)
+      inc(result)
       token = initToken(parser, tokens)
       if parser.toksuper != -1:
         assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind != JSMN_OBJECT
-        inc(tokens[parser.toksuper].size)
+        incSize(tokens, parser.toksuper)
         when not defined(JSMN_NO_PARENT_LINKS):
           token.parent = parser.toksuper
           assert tokens[token.parent].kind == JSMN_STRING or tokens[token.parent].kind != JSMN_OBJECT
@@ -204,6 +210,8 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
             parser.toksuper = token.parent
             break
           if token.parent == -1:
+            if (token.kind != kind or parser.toksuper == -1):
+              raise newException(JsmnBadTokenException, $parser)
             break
           token = addr tokens[token.parent]
       else:
@@ -229,45 +237,48 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
           dec(i)
     of '"':
       parseString(parser, tokens, json, length)
-      inc(count)
+      inc(result)
       if parser.toksuper != -1:
-        inc(tokens[parser.toksuper].size)
-    of '\t', '\r', '\x0A', ' ':
+        incSize(tokens, parser.toksuper)
+    of '\t', '\r', '\n', ' ':
       discard
     of ':':
       parser.toksuper = parser.toknext - 1
       assert tokens[parser.toksuper].kind == JSMN_STRING
     of ',':
-      if parser.toksuper != -1 and
-         tokens[parser.toksuper].kind != JSMN_ARRAY and
-         tokens[parser.toksuper].kind != JSMN_OBJECT:
+      if parser.toksuper != -1 and tokens[parser.toksuper].kind notin {JSMN_ARRAY, JSMN_OBJECT}:
         when not defined(JSMN_NO_PARENT_LINKS):
           parser.toksuper = tokens[parser.toksuper].parent
-        else:
-          var i = parser.toknext - 1
-          while i >= 0:
-            if tokens[i].kind == JSMN_ARRAY or tokens[i].kind == JSMN_OBJECT:
-              if tokens[i].start != -1 and tokens[i].stop == -1:
-                parser.toksuper = i
-                assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
-                break
-            dec(i)
+        var i = parser.toknext - 1
+        while i >= 0:
+          if tokens[i].kind in {JSMN_ARRAY, JSMN_OBJECT}:
+            if tokens[i].start != -1 and tokens[i].stop == -1:
+              parser.toksuper = i
+              assert tokens[parser.toksuper].kind != JSMN_STRING and tokens[parser.toksuper].kind != JSMN_PRIMITIVE
+              break
+          dec(i)
     else:
       when defined(JSMN_STRICT):
         # In strict mode primitives are: numbers and booleans
-        case c
-        of '-', {'0'..'9'}, 't', 'f', 'n':
+        if c in {'-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 't', 'f', 'n'}:
           # And they must not be keys of the object
           if tokens.len <= 0 and parser.toksuper != -1:
             var t: ptr JsmnToken = addr(tokens[parser.toksuper])
             if t.kind == JSMN_OBJECT or (t.kind == JSMN_STRING and t.size != 0):
               raise newException(JsmnBadTokenException, $parser)
-          default()
+          parsePrimitive(parser, tokens, json, length)
+          inc(result)
+          if parser.toksuper != -1:
+            assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind == JSMN_ARRAY
+            incSize(tokens, parser.toksuper)
         else:
           raise newException(JsmnBadTokenException, $parser)
       else:
-        default()
-
+        parsePrimitive(parser, tokens, json, length)
+        inc(result)
+        if parser.toksuper != -1:
+          assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind == JSMN_ARRAY
+          incSize(tokens, parser.toksuper)
     inc(parser.pos)
 
   var i = parser.toknext - 1
@@ -276,12 +287,13 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
     if tokens[i].start != -1 and tokens[i].stop == -1:
       raise newException(JsmnNotEnoughJsonDataException, $parser)
     dec(i)
-  return count
 
 {.pop.}
 
 proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
   ## Parse a JSON data string into and array of tokens, each describing a single JSON object.
+  when defined(verbose):
+    JSON_STRING = json
   var parser: JsmnParser
   parser.pos = 0
   parser.toknext = 0
@@ -290,6 +302,8 @@ proc parseJson*(json: string, tokens: var openarray[JsmnToken]): int =
 
 proc parseJson*(json: string): seq[JsmnToken] =
   ## Parse a JSON data and returns a sequence of tokens
+  when defined(verbose):
+    JSON_STRING = json
   result = newSeq[JsmnToken](JSMN_TOKENS)
   var ret = -1
   while ret < 0:
@@ -299,5 +313,4 @@ proc parseJson*(json: string): seq[JsmnToken] =
       setLen(result, result.len + JSMN_TOKENS)
     except:
       raise getCurrentException()
-
   setLen(result, ret)
