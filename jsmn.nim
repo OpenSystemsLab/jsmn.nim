@@ -6,7 +6,7 @@
 #
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
@@ -96,30 +96,26 @@ proc initToken(parser: var JsmnParser, tokens: var openarray[JsmnToken], kind = 
 
   inc(parser.toknext)
 
-
-template found(): untyped =
-  if tokens.len <= 0:
-    dec(parser.pos)
-    return
-  var token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
-  when not defined(JSMN_NO_PARENT_LINKS):
-    token.parent = parser.toksuper
-    assert tokens[token.parent].kind == JSMN_STRING
-  dec(parser.pos)
-  return
+when defined(JSMN_STRICT):
+  const afterPrimitiveSet =  {':', '\t', '\r', '\n', ' ', ',', ']', '}'}
+else:
+  const afterPrimitiveSet =  {'\t', '\r', '\n', ' ', ',', ']', '}'}
 
 proc parsePrimitive(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int) =
   ## Fills next available token with JSON primitive.
   var start = parser.pos
   while parser.pos < length and json[parser.pos] != '\0':
     let c = json[parser.pos]
-    when defined(JSMN_STRICT):
-      if c == ':':
-        found()
-    else:
-      if c in ['\x09', '\x0D', '\x0A', ' ', ',', ']', '}']:
-        found()
-
+    if c in afterPrimitiveSet:
+      if tokens.len <= 0:
+        dec(parser.pos)
+        return
+      var token = initToken(parser, tokens, JSMN_PRIMITIVE, start, parser.pos)
+      when not defined(JSMN_NO_PARENT_LINKS):
+        token.parent = parser.toksuper
+        assert tokens[token.parent].kind == JSMN_STRING or tokens[token.parent].kind == JSMN_ARRAY
+      dec(parser.pos)
+      return
     if json[parser.pos].ord < 32 or json[parser.pos].ord >= 127:
       raise newException(JsmnBadTokenException, $parser)
     inc(parser.pos)
@@ -168,9 +164,9 @@ template default(): untyped =
   parsePrimitive(parser, tokens, json, length)
   inc(count)
   if parser.toksuper != -1:
-    assert tokens[parser.toksuper].kind == JSMN_STRING
+    assert tokens[parser.toksuper].kind == JSMN_STRING or tokens[parser.toksuper].kind == JSMN_ARRAY
     inc(tokens[parser.toksuper].size)
-  
+
 proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: string, length: int): int =
   ## Parse JSON string and fill tokens.
   if tokens.len <= 0:
@@ -271,7 +267,7 @@ proc parse(parser: var JsmnParser, tokens: var openarray[JsmnToken], json: strin
           raise newException(JsmnBadTokenException, $parser)
       else:
         default()
-        
+
     inc(parser.pos)
 
   var i = parser.toknext - 1
