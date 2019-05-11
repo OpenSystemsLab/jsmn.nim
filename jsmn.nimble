@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2"
+version       = "0.2.0"
 author        = "Huy Doan"
 description   = "Jsmn - a world fastest JSON parser - in pure Nim"
 license       = "MIT"
