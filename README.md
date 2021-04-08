@@ -9,7 +9,7 @@ According to this [benchmark script](https://github.com/rgv151/benchmarking/blob
 ## Usage
 
 ```nim
-
+import jsmn
 const
   json = """{
     "user": "johndoe",
@@ -17,7 +17,7 @@ const
     "uid": 1000,
     "groups": ["users", "wheel", "audio", "video"]}"""
 
-var tokens: array[32, JsmnToken] # expect not more than 32 tokens
+var tokens = newSeq[JsmnToken](32) # expect not more than 32 tokens
 let r = parseJson(json, tokens)
 
 for i in 1..r:
