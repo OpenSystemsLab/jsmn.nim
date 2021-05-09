@@ -1,0 +1,33 @@
+name: "Build"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+        nimversion:
+          - stable
+          - devel
+    name: ${{ matrix.os }} - ${{ matrix.nimversion }}
+    runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: iffy/install-nim@v3.2.0
+        with:
+          version: ${{ matrix.nimversion }}
+      - run: nim --version
+      - name: Refresh packages + install dependencies
+        run: |
+          nimble refresh
+          nimble install -d
+      - name: Run all tests
+        run: nimble test
