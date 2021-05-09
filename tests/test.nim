@@ -80,10 +80,10 @@ block: # Object
     (JSMN_STRING, "b", 1),
     (JSMN_STRING, "c", 0))
 
-# block: # Array
-#   check("[10]", 2, 2,
-#     (JSMN_ARRAY, -1, -1, 1),
-#     (JSMN_PRIMITIVE, "10"))
+block: # Array
+  check("[10]", 2, 2,
+    (JSMN_ARRAY, -1, -1, 1),
+    (JSMN_PRIMITIVE, "10"))
 
 block: # Primitive
   check("{\"boolVar\" : true }", 3, 3,
@@ -112,10 +112,10 @@ block: # String
     (JSMN_OBJECT, -1, -1, 1),
     (JSMN_STRING, "strVar", 1),
     (JSMN_STRING, "hello world", 0))
-#   check("{\"strVar\" : \"escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\\"}", 3, 3,
-#     (JSMN_OBJECT, -1, -1, 1),
-#     (JSMN_STRING, "strVar", 1),
-#     (JSMN_STRING, "escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\", 0))
+  check("{\"strVar\" : \"escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\\"}", 3, 3,
+    (JSMN_OBJECT, -1, -1, 1),
+    (JSMN_STRING, "strVar", 1),
+    (JSMN_STRING, "escapes: \\/\\r\\n\\t\\b\\f\\\"\\\\", 0))
   check("{\"strVar\": \"\"}", 3, 3,
     (JSMN_OBJECT, -1, -1, 1),
     (JSMN_STRING, "strVar", 1),
